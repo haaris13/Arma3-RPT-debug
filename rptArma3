@@ -1,0 +1,136 @@
+
+"""
+===============================================================================
+Filename        : arma3_log_analyzer.py
+Author          : alharis thess / Pacific Island
+Date            : 2025-05-24
+Description     : 
+    Arma 3 .rpt log file analyzer.
+    - Modern dark-themed GUI built with customtkinter.
+    - Load .rpt files, filter errors by keywords,
+      and display errors with line numbers.
+    - Export detected errors to a .txt file.
+    
+License         : No licence man do what you want !
+Dependencies    : customtkinter (pip install customtkinter), tkinter (standard)
+Usage           : python arma3_log_analyzer.py
+===============================================================================
+Change Log:
+ 2025-05-24  - Initial version with GUI and basic error analysis.
+===============================================================================
+"""
+
+import customtkinter as ctk
+from tkinter import filedialog, messagebox
+
+# UI
+ctk.set_appearance_mode("dark")  # 'light' ou 'dark'
+ctk.set_default_color_theme("blue")  # Template color
+
+# --- Analyse ---
+def analyser_rpt(fichier_rpt, filtres_actifs):
+    erreurs = []
+    try:
+        with open(fichier_rpt, 'r', encoding='utf-8', errors='ignore') as fichier:
+            for i, ligne in enumerate(fichier, start=1):
+                for mot in filtres_actifs:
+                    if mot.lower() in ligne.lower():
+                        erreurs.append((i, ligne.strip()))
+                        break
+        return erreurs
+    except FileNotFoundError:
+        messagebox.showerror("Erreur", f"Fichier non trouvé : {fichier_rpt}")
+    except Exception as e:
+        messagebox.showerror("Erreur", f"Erreur : {e}")
+    return []
+
+# --- Actions boutons ---
+def afficher_erreurs():
+    global erreurs_globales
+    if not chemin_fichier_global:
+        messagebox.showwarning("Attention", "Aucun fichier sélectionné.")
+        return
+
+    filtres_actifs = [mot for mot, var in filtres_vars.items() if var.get()]
+    erreurs = analyser_rpt(chemin_fichier_global, filtres_actifs)
+    erreurs_globales = erreurs
+
+    zone_texte.configure(state="normal")
+    zone_texte.delete("0.0", "end")
+    if erreurs:
+        zone_texte.insert("end", "=== Erreurs trouvées dans le fichier RPT ===\n\n")
+        for ligne_num, erreur in erreurs:
+            zone_texte.insert("end", f"Ligne {ligne_num}: {erreur}\n")
+    else:
+        zone_texte.insert("end", "Aucune erreur trouvée.")
+    zone_texte.configure(state="disabled")
+
+def ouvrir_fichier():
+    global chemin_fichier_global
+    fichier = filedialog.askopenfilename(
+        title="Sélectionner un fichier RPT",
+        filetypes=[("Fichiers RPT", "*.rpt"), ("Tous les fichiers", "*.*")]
+    )
+    if fichier:
+        chemin_fichier_global = fichier
+        afficher_erreurs()
+
+def exporter_erreurs():
+    if not erreurs_globales:
+        messagebox.showinfo("Info", "Aucune erreur à exporter.")
+        return
+
+    fichier = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Fichier texte", "*.txt")])
+    if fichier:
+        try:
+            with open(fichier, "w", encoding="utf-8") as f:
+                f.write("=== Erreurs trouvées dans le fichier RPT ===\n\n")
+                for ligne_num, erreur in erreurs_globales:
+                    f.write(f"Ligne {ligne_num}: {erreur}\n")
+            messagebox.showinfo("Succès", f"Erreurs exportées vers : {fichier}")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de l'export : {e}")
+
+# --- globales var ---
+chemin_fichier_global = None
+erreurs_globales = []
+filtres_disponibles = ["error", "warning", "missing", "undefined", "invalid", "failed"]
+filtres_vars = {}
+
+# --- Interface ---
+app = ctk.CTk()
+app.title("Logs Arma 3 - alharis thess")
+app.geometry("950x700")
+
+# --- Main Boutons  ---
+frame_boutons = ctk.CTkFrame(app)
+frame_boutons.pack(pady=15)
+
+btn_ouvrir = ctk.CTkButton(frame_boutons, text="📂 Sélectionner un fichier .RPT", command=ouvrir_fichier)
+btn_ouvrir.pack(side="left", padx=10)
+
+btn_exporter = ctk.CTkButton(frame_boutons, text="💾 Exporter les erreurs", command=exporter_erreurs)
+btn_exporter.pack(side="left", padx=10)
+
+# --- Filter ---
+frame_filtres = ctk.CTkFrame(app)
+frame_filtres.pack(pady=10)
+
+ctk.CTkLabel(frame_filtres, text="Filtres d'erreurs à afficher :", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=5)
+
+checkboxes_frame = ctk.CTkFrame(frame_filtres)
+checkboxes_frame.pack()
+
+for mot in filtres_disponibles:
+    var = ctk.BooleanVar(value=True)
+    filtres_vars[mot] = var
+    cb = ctk.CTkCheckBox(checkboxes_frame, text=mot.capitalize(), variable=var, command=afficher_erreurs)
+    cb.pack(side="left", padx=5, pady=2)
+
+# --- Zone de texte ---
+zone_texte = ctk.CTkTextbox(app, width=900, height=500, font=("Consolas", 11), corner_radius=10)
+zone_texte.pack(padx=20, pady=20)
+zone_texte.configure(state="disabled")
+
+# --- Lancement ---
+app.mainloop()
